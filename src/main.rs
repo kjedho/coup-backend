@@ -27,6 +27,7 @@ async fn main() -> std::io::Result<()> {
             .app_data(app_data)
             .service(api::api::create_game)
             .service(api::api::get_game)
+            .service(api::api::get_game_sessions)
     })
         .bind((ip, port))?
         .run()

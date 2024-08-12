@@ -7,13 +7,13 @@ pub struct Game {
 }
 
 impl Game {
-    fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             players: vec![Player::new("Player 1"), Player::new("Player 2")],
         }
     }
 
-    fn add_player(&mut self, player: Player) {
+    pub fn add_player(&mut self, player: Player) {
         self.players.push(player);
     }
 }

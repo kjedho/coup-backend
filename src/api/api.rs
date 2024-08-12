@@ -7,12 +7,13 @@ use crate::GameDb;
 
 #[post("/create_game")]
 async fn create_game(
-    game_data: web::Json<Game>,
+    // game_data: web::Json<Game>,
     game_sessions: web::Data<GameDb>,
 ) -> impl Responder {
     let mut game_sessions = game_sessions.lock().unwrap();
     let game_uuid: Uuid = Uuid::new_v4();
-    game_sessions.insert(game_uuid, game_data.into_inner());
+    // game_sessions.insert(game_uuid, game_data.into_inner());
+    game_sessions.insert(game_uuid, Game::new());
     HttpResponse::Created().json(game_uuid)
 }
 
@@ -28,4 +29,12 @@ async fn get_game(
         Some(game) => Ok(HttpResponse::Ok().json(game)),
         None => Err(ErrorNotFound("Game not found")),
     }
+}
+
+#[get("/get_game_sessions")]
+async fn get_game_sessions(
+    game_sessions: web::Data<GameDb>
+) -> impl Responder {
+    let num_keys = game_sessions.lock().unwrap().keys().len();
+    HttpResponse::Ok().body("Number of game sessions: ".to_string() + &num_keys.to_string())
 }
