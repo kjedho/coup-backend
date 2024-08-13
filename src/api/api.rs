@@ -25,16 +25,21 @@ async fn create_game(
     HttpResponse::Created().json(game_uuid)
 }
 
-#[post("/add_player/{uuid}/{player_name}")]
+#[derive(Serialize, Deserialize)]
+struct AddPlayer {
+    uuid: Uuid,
+    player_name: String,
+}
+
+#[post("/add_player")]
 async fn add_player(
-    game_uuid: web::Path<Uuid>,
-    player_name: web::Json<String>,
+    add_player_data: web::Json<AddPlayer>,
     game_sessions: web::Data<GameDb>,
 ) -> impl Responder {
     let mut game_sessions = game_sessions.lock().unwrap();
-    let game = game_sessions.get_mut(&game_uuid).unwrap();
-    game.add_player(Player::new(&player_name));
-    HttpResponse::Created().json(player_name)
+    let game = game_sessions.get_mut(&add_player_data.uuid).unwrap();
+    game.add_player(Player::new(&add_player_data.player_name));
+    HttpResponse::Created().json(&add_player_data.player_name)
 }
 
 #[post("/start_game/{uuid}")]

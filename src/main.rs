@@ -3,7 +3,8 @@ use std::{
     sync::{Arc, Mutex},
     collections::HashMap,
 };
-use actix_web::{App, HttpServer, web};
+use actix_web::{http, App, HttpServer, web};
+use actix_cors::Cors;
 use uuid::Uuid;
 
 mod api;
@@ -23,11 +24,18 @@ async fn main() -> std::io::Result<()> {
 
     HttpServer::new(move || {
         let app_data: web::Data<GameDb> = web::Data::new(game_sessions.clone());
+        let cors = Cors::default()
+            .allowed_origin("http://localhost:5173")
+            .allowed_methods(vec!["GET", "POST"])
+            .allowed_header(http::header::CONTENT_TYPE)
+            .max_age(3600);
         App::new()
+            .wrap(cors)
             .app_data(app_data)
             .service(api::api::create_game)
             .service(api::api::get_game)
             .service(api::api::get_game_sessions)
+            .service(api::api::add_player)
     })
         .bind((ip, port))?
         .run()
