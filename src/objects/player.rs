@@ -14,6 +14,7 @@ enum Action {
 }
 
 enum CounterAction {
+    CallBluff,
     BlockForeignAid,
     BlockAssassinate,
     BlockSteal,

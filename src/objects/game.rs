@@ -11,7 +11,7 @@ pub struct Game {
 impl Game {
     pub fn new() -> Self {
         Self {
-            players: vec![Player::new("Player 1"), Player::new("Player 2")],
+            players: vec![],
             deck: Deck::new(),
         }
     }

@@ -5,7 +5,10 @@ edition = "2021"
 
 [dependencies]
 actix-web = "4.9.0"
+rand = "0.8.5"
 serde = { version = "1.0.206", features = ["derive"] }
+strum = "0.26.3"
+strum_macros = "0.26.4"
 
 [dependencies.uuid]
 version = "1.10.0"
