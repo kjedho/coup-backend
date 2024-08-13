@@ -1,20 +1,51 @@
 use actix_web::error::{Error, ErrorNotFound};
 use actix_web::{get, post, web, HttpResponse, Responder};
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::objects::game::Game;
+use crate::objects::player::Player;
 use crate::GameDb;
+
+#[derive(Serialize, Deserialize)]
+struct GameCreation {
+    creator: String,
+    num_players: usize,
+}
 
 #[post("/create_game")]
 async fn create_game(
-    // game_data: web::Json<Game>,
+    creation_data: web::Json<GameCreation>,
     game_sessions: web::Data<GameDb>,
 ) -> impl Responder {
     let mut game_sessions = game_sessions.lock().unwrap();
     let game_uuid: Uuid = Uuid::new_v4();
-    // game_sessions.insert(game_uuid, game_data.into_inner());
-    game_sessions.insert(game_uuid, Game::new());
+    let new_game = Game::new(&creation_data.creator, creation_data.num_players);
+    game_sessions.insert(game_uuid, new_game);
     HttpResponse::Created().json(game_uuid)
+}
+
+#[post("/add_player/{uuid}/{player_name}")]
+async fn add_player(
+    game_uuid: web::Path<Uuid>,
+    player_name: web::Json<String>,
+    game_sessions: web::Data<GameDb>,
+) -> impl Responder {
+    let mut game_sessions = game_sessions.lock().unwrap();
+    let game = game_sessions.get_mut(&game_uuid).unwrap();
+    game.add_player(Player::new(&player_name));
+    HttpResponse::Created().json(player_name)
+}
+
+#[post("/start_game/{uuid}")]
+async fn start_game(
+    game_uuid: web::Path<Uuid>,
+    game_sessions: web::Data<GameDb>,
+) -> impl Responder {
+    let mut game_sessions = game_sessions.lock().unwrap();
+    let game = game_sessions.get_mut(&game_uuid).unwrap();
+    let start_player = game.start_game();
+    HttpResponse::Created().json(start_player)
 }
 
 #[get("/get_game/{uuid}")]

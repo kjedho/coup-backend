@@ -12,7 +12,7 @@ pub enum Role {
 
 #[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq)]
 pub struct Card {
-    role: Role,
+    pub role: Role,
     pub visible: bool, 
 }
 
