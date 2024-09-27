@@ -14,9 +14,9 @@ pub struct Deck {
 impl Deck {
     pub fn new() -> Self {
         Self {
-            cards: Vec::from_iter(Role::iter().map(|role| {
+            cards: Vec::from_iter(Role::iter().flat_map(|role| {
                 vec![Card::new(role); CARD_COPIES]
-            }).flatten())
+            }))
         }
     }
 
@@ -85,7 +85,7 @@ mod tests {
         deck.cards.last_mut().unwrap().visible = true;
         let card = deck.draw();
         assert_eq!(card, Some(Card::new(Role::Ambassador)));
-        assert_eq!(card.unwrap().visible, false);
+        assert!(!card.unwrap().visible);
 
         deck.cards.clear();
         let card = deck.draw();

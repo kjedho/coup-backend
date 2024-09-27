@@ -18,9 +18,9 @@ pub struct Game {
 impl Game {
     pub fn new(creator: &String, num_players: usize) -> Self {
         let mut players = Vec::with_capacity(num_players);
-        players.push(Player::new(&creator));
+        players.push(Player::new(creator));
         Self {
-            players: players,
+            players,
             deck: Deck::new(),
             coins: MAX_COINS,
             current_player: 0,

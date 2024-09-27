@@ -31,14 +31,14 @@ impl Player {
             1 => {
                 self.cards.iter_mut().find(|card| !card.visible).unwrap().visible = true;
                 self.is_alive = false;
-                return Ok(true);
+                Ok(true)
             }
             2 => {
                 //TODO: give player choice of card to lose in some way
                 let mut rng = rand::thread_rng();
                 let index = rng.gen_range(0..2);
                 self.cards[index].visible = true;
-                return Ok(true);
+                Ok(true)
             }
             _ => Err("Invalid number of cards"),
         }
@@ -69,7 +69,7 @@ impl Player {
         if self == target {
             return Err("Cannot coup yourself");
         }
-        if target.is_alive == false {
+        if !target.is_alive {
             return Err("Target is already dead");
         }
         self.coins -= 7;
@@ -93,7 +93,7 @@ impl Player {
         if self == target {
             return Err("Cannot assassinate yourself");
         }
-        if target.is_alive == false {
+        if !target.is_alive {
             return Err("Target is already dead");
         }
         self.coins -= 3;

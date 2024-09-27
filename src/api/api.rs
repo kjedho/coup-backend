@@ -59,7 +59,7 @@ async fn get_game(
     game_sessions: web::Data<GameDb>,
 ) -> Result<impl Responder, Error> {
     let game_uuid = game_uuid.into_inner();
-    let mut game_sessions = game_sessions.lock().unwrap();
+    let game_sessions = game_sessions.lock().unwrap();
 
     match game_sessions.get(&game_uuid) {
         Some(game) => Ok(HttpResponse::Ok().json(game)),
