@@ -3,8 +3,8 @@ use actix_web::{get, post, web, HttpResponse, Responder};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::objects::game::Game;
-use crate::objects::player::Player;
+use crate::game::game::Game;
+use crate::game::player::Player;
 use crate::GameDb;
 
 #[derive(Serialize, Deserialize)]
