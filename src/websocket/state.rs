@@ -6,7 +6,7 @@ use uuid::Uuid;
 pub struct GameState {
     pub title: String,
     pub subtitle: String,
-    pub players: Vec<Player>,
+    pub players: Vec<(Player, bool)>,
     pub coins: u8,
     pub current_player: String,
 }
@@ -28,13 +28,13 @@ impl GameState {
             } else {
                 visible_cards = player.cards.iter().filter(|card| card.visible).cloned().collect();
             }
-            game_state.players.push(Player {
+            game_state.players.push((Player {
                 uuid: player.uuid,
                 name: player.name.clone(),
                 is_alive: player.is_alive,
                 coins: player.coins,
                 cards: visible_cards,
-            });
+            }, (player.name == game_state.current_player && is_current_player)));
         }
         game_state
     }
