@@ -14,6 +14,7 @@ pub struct Game {
     pub deck: Deck,
     pub coins: u8,
     pub current_player: usize,
+    pub started: bool,
 }
 
 impl Game {
@@ -25,6 +26,7 @@ impl Game {
             deck: Deck::new(),
             coins: MAX_COINS,
             current_player: 0,
+            started: false,
         }
     }
 
@@ -39,6 +41,7 @@ impl Game {
         if self.players.len() > MAX_PLAYERS {
             return Err("Too many players");
         }
+        self.started = true;
         self.deck.shuffle();
         for player in self.players.iter_mut() {
             player.cards.push(self.deck.draw().unwrap());

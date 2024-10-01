@@ -116,6 +116,11 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsChatSession {
                                 ctx.text("Could not create lobby: number of players and player name required.");
                             }
                         }
+                        "/start_game" => {
+                            self.addr.do_send(server::StartGame {
+                                room_uuid: Uuid::parse_str(v[1]).expect("Invalid UUID").to_owned(),
+                            });
+                        }
                         _ => ctx.text(format!("Unknown command: {m:?}")),
                     }
                 }

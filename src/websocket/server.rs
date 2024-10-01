@@ -8,9 +8,11 @@ use std::{
 
 use crate::game::game::Game;
 use crate::game::player::Player;
+use super::state::{ GameState, LobbyState };
 
 use uuid::Uuid;
 use actix::prelude::*;
+use serde_json;
 
 #[derive(Message)]
 #[rtype(result = "()")]
@@ -51,6 +53,12 @@ pub struct Create {
     pub number_of_players: usize,
     pub client_uuid: Uuid,
     pub client_name: String,
+}
+
+#[derive(Message)]
+#[rtype(result = "()")]
+pub struct StartGame {
+    pub room_uuid: Uuid,
 }
 
 #[derive(Debug)]
@@ -120,16 +128,19 @@ impl Handler<Join> for ChatServer {
     fn handle(&mut self, msg: Join, _: &mut Context<Self>) {
         let Join { room_uuid, client_uuid, client_name } = msg;
         if let Some(game) = self.rooms.get_mut(&room_uuid) {
+            if game.started {
+                return;
+            }
             let player = Player::new(&client_uuid, &client_name);
             game.add_player(player);
         }
         for recipient in self.sessions.values() {
-            recipient.do_send(Message(
-                format!("{{\"lobbyState\":{{\"sessionUUID\":\"{}\",\"numPlayers\":{},\"players\":{:?}}}}}",
-                room_uuid,
-                self.rooms.get(&room_uuid).unwrap().players.capacity(),
-                self.rooms.get(&room_uuid).unwrap().players.iter().map(|player| player.name.clone()).collect::<Vec<String>>(),
-            )));
+            let lobby_state = LobbyState {
+                room_uuid: room_uuid,
+                num_players: self.rooms.get(&room_uuid).unwrap().players.capacity(),
+                players: self.rooms.get(&room_uuid).unwrap().players.iter().map(|player| player.name.clone()).collect::<Vec<String>>(),
+            };
+            recipient.do_send(Message(serde_json::to_string(&lobby_state).unwrap()));
         }
     }
 }
@@ -141,11 +152,26 @@ impl Handler<Create> for ChatServer {
         let Create { number_of_players, client_uuid, client_name } = msg;
         let room_uuid = Uuid::new_v4();
         self.rooms.insert(room_uuid, Game::new(&client_uuid, &client_name, number_of_players));
-        self.sessions.get(&client_uuid).unwrap().do_send(Message(
-            format!("{{\"lobbyState\":{{\"sessionUUID\":\"{}\",\"numPlayers\":{},\"players\":{:?}}}}}",
-            room_uuid,
-            self.rooms.get(&room_uuid).unwrap().players.capacity(),
-            self.rooms.get(&room_uuid).unwrap().players.iter().map(|player| player.name.clone()).collect::<Vec<String>>(),
-        )));
+        let lobby_state = LobbyState {
+            room_uuid: room_uuid,
+            num_players: self.rooms.get(&room_uuid).unwrap().players.capacity(),
+            players: self.rooms.get(&room_uuid).unwrap().players.iter().map(|player| player.name.clone()).collect::<Vec<String>>(),
+        };
+        self.sessions.get(&client_uuid).unwrap().do_send(Message(serde_json::to_string(&lobby_state).unwrap()));
+    }
+}
+
+impl Handler<StartGame> for ChatServer {
+    type Result = ();
+
+    fn handle(&mut self, msg: StartGame, _: &mut Context<Self>) {
+        if let Some(game) = self.rooms.get_mut(&msg.room_uuid) {
+            if let Ok(_) = game.start_game() {
+                for player in game.players.iter() {
+                    let game_state = GameState::new(&player.uuid, game);
+                    self.sessions.get(&player.uuid).unwrap().do_send(Message(serde_json::to_string(&game_state).unwrap()));
+                }
+            }
+        }
     }
 }
