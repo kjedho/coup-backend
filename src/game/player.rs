@@ -2,12 +2,14 @@ use std::vec;
 use rand::Rng;
 use rand::seq::SliceRandom;
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 use super::card::Card;
 use super::game::Game;
 
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct Player {
+    pub uuid: Uuid,
     pub name: String,
     pub is_alive: bool,
     pub cards: Vec<Card>,
@@ -15,8 +17,9 @@ pub struct Player {
 }
 
 impl Player {
-    pub fn new(name: &str) -> Self {
+    pub fn new(uuid: &Uuid, name: &str) -> Self {
         Self {
+            uuid: *uuid,
             name: name.to_string(),
             is_alive: true,
             cards: vec![],

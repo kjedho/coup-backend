@@ -1,6 +1,6 @@
 use std::time::{Duration, Instant};
 
-use uuid::{Uuid, uuid};
+use uuid::Uuid;
 use actix::prelude::*;
 use actix_web_actors::ws;
 
@@ -11,7 +11,7 @@ const CLIENT_TIMEOUT: Duration = Duration::from_secs(10);
 
 #[derive(Debug)]
 pub struct WsChatSession {
-    pub id: Uuid,
+    pub uuid: Uuid,
     pub hb: Instant,
     pub addr: Addr<server::ChatServer>,
 }
@@ -21,7 +21,7 @@ impl WsChatSession {
         ctx.run_interval(HEARTBEAT_INTERVAL, |act, ctx| {
             if Instant::now().duration_since(act.hb) > CLIENT_TIMEOUT {
                 println!("Websocket Client heartbeat failed, disconnecting!");
-                act.addr.do_send(server::Disconnect { id: act.id });
+                act.addr.do_send(server::Disconnect { uuid: act.uuid });
                 ctx.stop();
                 return;
             }
@@ -38,14 +38,16 @@ impl Actor for WsChatSession {
         self.hb(ctx);
 
         let addr = ctx.address();
+        let uuid =  Uuid::new_v4();
         self.addr
             .send(server::Connect {
                 addr: addr.recipient(),
+                uuid: uuid,
             })
             .into_actor(self)
-            .then(|res, act, ctx| {
+            .then(move |res, act, ctx| {
                 match res {
-                    Ok(res) => act.id = res,
+                    Ok(_res) => act.uuid = uuid,
                     _ => ctx.stop(),
                 }
                 fut::ready(())
@@ -54,7 +56,7 @@ impl Actor for WsChatSession {
     }
 
     fn stopping(&mut self, _: &mut Self::Context) -> Running {
-        self.addr.do_send(server::Disconnect { id: self.id });
+        self.addr.do_send(server::Disconnect { uuid: self.uuid });
         Running::Stop
     }
 }
@@ -94,39 +96,28 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsChatSession {
                         "/join_lobby" => {
                             if v.len() == 3 {
                                 self.addr.do_send(server::Join {
-                                    id: uuid!(v[1]).to_owned(),
-                                    name: v[2].to_owned(),
+                                    room_uuid: Uuid::parse_str(v[1]).expect("Invalid UUID").to_owned(),
+                                    client_uuid: self.uuid,
+                                    client_name: v[2].to_owned()
                                 });
-                                ctx.text("Joined lobby.");
                             } else {
-                                ctx.text("Could not join lobby: UUID and player name required.");
+                                ctx.text("Could not join lobby: game UUID and player name required.");
                             }
                         }
                         "/create_lobby" => {
                             if v.len() == 3 {
                                 self.addr.do_send(server::Create {
-                                    number_of_players: v[1].to_owned(),
-                                    name: v[2].to_owned(),
+                                    number_of_players: v[1].parse::<usize>().expect("Invalid usize").to_owned(),
+                                    client_uuid: self.uuid,
+                                    client_name: v[2].to_owned(),
                                 });
                                 ctx.text("Created lobby.");
                             } else {
                                 ctx.text("Could not create lobby: number of players and player name required.");
                             }
                         }
-                        _ => ctx.text(format!("!!! unknown command: {m:?}")),
+                        _ => ctx.text(format!("Unknown command: {m:?}")),
                     }
-                } else {
-                    let msg = if let Some(ref name) = self.name {
-                        format!("{name}: {m}")
-                    } else {
-                        m.to_owned()
-                    };
-                    // send message to chat server
-                    self.addr.do_send(server::ClientMessage {
-                        id: self.id,
-                        msg,
-                        room: self.room.clone(),
-                    })
                 }
             }
             ws::Message::Binary(_) => println!("Unexpected binary"),

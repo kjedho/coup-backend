@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use rand::Rng;
+use uuid::Uuid;
 use super::player::Player;
 use super::deck::Deck;
 
@@ -16,9 +17,9 @@ pub struct Game {
 }
 
 impl Game {
-    pub fn new(creator: &String, num_players: usize) -> Self {
+    pub fn new(creator_uuid: &Uuid, creator_name: &String, num_players: usize) -> Self {
         let mut players = Vec::with_capacity(num_players);
-        players.push(Player::new(creator));
+        players.push(Player::new(creator_uuid, creator_name));
         Self {
             players,
             deck: Deck::new(),
