@@ -1,9 +1,8 @@
 use std::{
-    collections::HashMap,
-    sync::{
+    collections::HashMap, sync::{
         atomic::AtomicUsize,
         Arc,
-    },
+    }
 };
 
 use crate::game::game::Game;
@@ -61,11 +60,28 @@ pub struct StartGame {
     pub room_uuid: Uuid,
 }
 
+#[derive(Message)]
+#[rtype(result = "()")]
+pub struct Action {
+    pub client_uuid: Uuid,
+    pub action: String,
+    pub target_name: Option<String>,
+}
+
 #[derive(Debug)]
 pub struct ChatServer {
     sessions: HashMap<Uuid, Recipient<Message>>,
     rooms: HashMap<Uuid, Game>,
     visitor_count: Arc<AtomicUsize>,
+}
+
+fn player_to_game<'a>(player_uuid: &'a Uuid, server: &'a ChatServer) -> Option<&'a Uuid> {
+    for (room_uuid, game) in server.rooms.iter() {
+        if game.players.iter().any(|player| player.uuid == *player_uuid) {
+            return Some(room_uuid);
+        }
+    }
+    None
 }
 
 impl ChatServer {
@@ -77,13 +93,11 @@ impl ChatServer {
         }
     }
 
-    fn send_message(&self, room: &Uuid, message: &str, skip_uuid: Uuid) {
+    fn send_message(&self, room: &Uuid, message: &str) {
         if let Some(game) = self.rooms.get(room) {
             for player in game.players.iter() {
-                if player.uuid != skip_uuid {
-                    if let Some(addr) = self.sessions.get(&player.uuid) {
-                        addr.do_send(Message(message.to_owned()));
-                    }
+                if let Some(addr) = self.sessions.get(&player.uuid) {
+                    addr.do_send(Message(message.to_owned()));
                 }
             }
         }
@@ -98,6 +112,7 @@ impl Handler<Connect> for ChatServer {
     type Result = ();
 
     fn handle(&mut self, msg: Connect, _: &mut Context<Self>) {
+        msg.addr.do_send(Message(format!("{{\"player_uuid\":\"{}\"}}", msg.uuid.to_string())));
         self.sessions.insert(msg.uuid, msg.addr);
         self.visitor_count.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     }
@@ -118,7 +133,7 @@ impl Handler<ClientMessage> for ChatServer {
     type Result = ();
 
     fn handle(&mut self, msg: ClientMessage, _: &mut Context<Self>) {
-        self.send_message(&msg.room_uuid, msg.msg.as_str(), msg.client_uuid);
+        self.send_message(&msg.room_uuid, msg.msg.as_str());
     }
 }
 
@@ -171,6 +186,35 @@ impl Handler<StartGame> for ChatServer {
                     let game_state = GameState::new(&player.uuid, game);
                     self.sessions.get(&player.uuid).unwrap().do_send(Message(serde_json::to_string(&game_state).unwrap()));
                 }
+            }
+        }
+    }
+}
+
+impl Handler<Action> for ChatServer {
+    type Result = ();
+
+    fn handle(&mut self, msg: Action, _: &mut Context<Self>) {
+        let room_uuid = player_to_game(&msg.client_uuid, self).unwrap();
+        // FIXME
+        if let Some(game) = self.rooms.get_mut(room_uuid) {
+            let player_uuid = &msg.client_uuid;
+            let player = game.players.iter_mut().find(|player| player.uuid == *player_uuid).unwrap();
+            let target = msg.target_name.as_ref().map(|name| game.players.iter_mut().find(|player| player.name == *name).unwrap());
+
+            let result = match msg.action.as_str() {
+                "income" => player.income(game),
+                "foreign_aid" => player.foreign_aid(game),
+                "tax" => player.tax(game),
+                "steal" => player.steal(target.unwrap()),
+                "assassinate" => player.assassinate(game, target.unwrap()),
+                "exchange" => player.exchange(game),
+                "coup" => player.coup(game, target.unwrap()),
+                _ => Err(("Invalid action")),
+            };
+
+            if result.is_ok() {
+                self.send_message(room_uuid, &serde_json::to_string(&GameState::new(&player.uuid, game)).unwrap());
             }
         }
     }

@@ -121,6 +121,14 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsChatSession {
                                 room_uuid: Uuid::parse_str(v[1]).expect("Invalid UUID").to_owned(),
                             });
                         }
+                        "/action" => {
+                            self.addr.do_send(server::Action {
+                                client_uuid: self.uuid,
+                                action: v[1].to_owned(),
+                                target_name: v.get(2).map(|s| s.to_string()),
+                            });
+                        }
+
                         _ => ctx.text(format!("Unknown command: {m:?}")),
                     }
                 }
