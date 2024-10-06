@@ -75,10 +75,10 @@ pub struct ChatServer {
     visitor_count: Arc<AtomicUsize>,
 }
 
-fn player_to_game<'a>(player_uuid: &'a Uuid, server: &'a ChatServer) -> Option<&'a Uuid> {
+fn player_to_game(player_uuid: &Uuid, server: &ChatServer) -> Option<Uuid> {
     for (room_uuid, game) in server.rooms.iter() {
         if game.players.iter().any(|player| player.uuid == *player_uuid) {
-            return Some(room_uuid);
+            return Some(room_uuid.clone());
         }
     }
     None
@@ -196,25 +196,49 @@ impl Handler<Action> for ChatServer {
 
     fn handle(&mut self, msg: Action, _: &mut Context<Self>) {
         let room_uuid = player_to_game(&msg.client_uuid, self).unwrap();
-        // FIXME
-        if let Some(game) = self.rooms.get_mut(room_uuid) {
+        if let Some(game) = self.rooms.get_mut(&room_uuid) {
             let player_uuid = &msg.client_uuid;
-            let player = game.players.iter_mut().find(|player| player.uuid == *player_uuid).unwrap();
-            let target = msg.target_name.as_ref().map(|name| game.players.iter_mut().find(|player| player.name == *name).unwrap());
+            let player_index = game.players.iter().position(|player| player.uuid == *player_uuid).unwrap();
+            let result;
+            if let Some(target_name) = msg.target_name {
+                let target_index = game.players.iter().position(|player| player.name == target_name).unwrap();
+                let mut temp_player = game.players.get_mut(player_index).unwrap().clone();
+                let mut temp_target = game.players.get_mut(target_index).unwrap().clone();
 
-            let result = match msg.action.as_str() {
-                "income" => player.income(game),
-                "foreign_aid" => player.foreign_aid(game),
-                "tax" => player.tax(game),
-                "steal" => player.steal(target.unwrap()),
-                "assassinate" => player.assassinate(game, target.unwrap()),
-                "exchange" => player.exchange(game),
-                "coup" => player.coup(game, target.unwrap()),
-                _ => Err(("Invalid action")),
-            };
+                result = match msg.action.as_str() {
+                    "steal" => temp_player.steal(&mut temp_target),
+                    "assassinate" => temp_player.assassinate(game, &mut temp_target),
+                    "coup" => temp_player.coup(game, &mut temp_target),
+                    _ => Err("Invalid targeted action"),
+                };
+                if result.is_ok() {
+                    game.players[player_index] = temp_player;
+                    game.players[target_index] = temp_target;
+                }
+            } else {
+                let mut temp_player = game.players.get_mut(player_index).unwrap().clone();
 
-            if result.is_ok() {
-                self.send_message(room_uuid, &serde_json::to_string(&GameState::new(&player.uuid, game)).unwrap());
+                result = match msg.action.as_str() {
+                    "income" => temp_player.income(game),
+                    "foreign_aid" => temp_player.foreign_aid(game),
+                    "tax" => temp_player.tax(game),
+                    "exchange" => temp_player.exchange(game),
+                    _ => Err("Invalid targeted action"),
+                };
+                if result.is_ok() {
+                    game.players[player_index] = temp_player;
+                }
+            }
+            if let Some(game) = self.rooms.get(&room_uuid) {
+                for player in game.players.iter() {
+                    let mut game_state = GameState::new(&player.uuid, game);
+                    for p in game_state.players.iter_mut() {
+                        if p.0.uuid != player.uuid {
+                            p.0.cards = p.0.cards.iter().filter(|card| card.visible).cloned().collect();
+                        }
+                    }
+                    self.sessions.get(&player.uuid).unwrap().do_send(Message(serde_json::to_string(&game_state).unwrap()));
+                }
             }
         }
     }

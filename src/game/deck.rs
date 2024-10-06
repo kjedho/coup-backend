@@ -25,7 +25,6 @@ impl Deck {
     }
 
     pub fn draw(&mut self) -> Option<Card> {
-        // pop() removes the last element from the vector and returns it
         let card = self.cards.pop();
         match card {
             Some(mut card) => {
@@ -40,6 +39,7 @@ impl Deck {
         if self.cards.len() < TOTAL_CARDS {
             card.visible = false;
             self.cards.push(card);
+            self.shuffle();
             Ok(true)
         } else {
             Err("Deck is full")

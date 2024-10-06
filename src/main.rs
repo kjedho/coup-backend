@@ -2,13 +2,11 @@ use std::{
     net::Ipv4Addr,
     sync::{
         Arc,
-        Mutex,
         atomic::{
             AtomicUsize,
             Ordering,
         },
     },
-    collections::HashMap,
     time::Instant,
 };
 use actix::*;
@@ -19,11 +17,10 @@ use uuid::Uuid;
 
 mod api;
 mod websocket;
+mod game;
+
 use websocket::server;
 use websocket::session;
-
-mod game;
-use game::game::Game;
 
 async fn chat_route(
     req: HttpRequest,
