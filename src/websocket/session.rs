@@ -122,11 +122,23 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsChatSession {
                             });
                         }
                         "/action" => {
-                            self.addr.do_send(server::Action {
-                                client_uuid: self.uuid,
-                                action: v[1].to_owned(),
-                                target_name: v.get(2).map(|s| s.to_string()),
-                            });
+                            if v[1].to_owned() == "exchange_confirm" {
+                                self.addr.do_send(server::Action {
+                                    client_uuid: self.uuid,
+                                    action: v[1].to_owned(),
+                                    target_name: None,
+                                    selected_card1: v.get(2).map(|s| s.to_string()),
+                                    selected_card2: v.get(3).map(|s| s.to_string()),
+                                });
+                            } else {
+                                self.addr.do_send(server::Action {
+                                    client_uuid: self.uuid,
+                                    action: v[1].to_owned(),
+                                    target_name: v.get(2).map(|s| s.to_string()),
+                                    selected_card1: None,
+                                    selected_card2: None,
+                                });
+                            }
                         }
 
                         _ => ctx.text(format!("Unknown command: {m:?}")),

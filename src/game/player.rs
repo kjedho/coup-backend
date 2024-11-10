@@ -1,6 +1,5 @@
 use std::vec;
 use rand::Rng;
-use rand::seq::SliceRandom;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use super::card::Card;
@@ -14,6 +13,7 @@ pub struct Player {
     pub is_alive: bool,
     pub cards: Vec<Card>,
     pub coins: u8,
+    pub exchange_cards: Vec<Card>,
 }
 
 impl Player {
@@ -24,6 +24,7 @@ impl Player {
             is_alive: true,
             cards: vec![],
             coins: 2,
+            exchange_cards: vec![],
         }
     }
 
@@ -104,20 +105,45 @@ impl Player {
         target.lose_influence()
     }
 
-    pub fn exchange(&mut self, game: &mut Game) -> Result<bool, &'static str> {
-        let mut new_cards = vec![];
+    pub fn exchange_draw(&mut self, game: &mut Game) -> Result<Vec<Card>, &'static str> {
+        self.exchange_cards.clear();
+        for card in self.cards.iter_mut() {
+            if !card.visible {
+                self.exchange_cards.push(*card);
+            }
+        }
         for _ in 0..2 {
             let card = game.deck.draw().unwrap();
-            new_cards.push(card);
+            self.exchange_cards.push(card);
         }
-        self.cards.extend(new_cards);
-        // TODO: give player choice of cards to return
-        self.cards.shuffle(&mut rand::thread_rng());
-        for _ in 0..2 {
-            let card = self.cards.pop().unwrap();
-            game.deck.return_card(card).unwrap();
-        }
+        Ok(self.exchange_cards.clone())
+    }
 
+    pub fn exchange_confirm(&mut self, game: &mut Game, cards: &Vec<Card>) -> Result<bool, &'static str> {
+        if cards.iter().filter(|&c| !c.visible).count() != self.exchange_cards.len()-2 {
+            return Err("Invalid number of cards");
+        }
+        for card in cards {
+            if !self.exchange_cards.contains(card) {
+                return Err("Invalid card");
+            }
+        }
+        if cards.len() == 2 {
+            self.cards = cards.clone();
+        } else {
+            let index = self.cards.iter().position(|card| !card.visible).unwrap();
+            self.cards[index] = cards[0];
+        }
+        for card in self.cards.iter() {
+            if !card.visible {
+                let index = self.exchange_cards.iter().position(|c| c == card).unwrap();
+                self.exchange_cards.remove(index);
+            }
+        }
+        for card in self.exchange_cards.iter() {
+            game.deck.return_card(*card).unwrap();
+        }
+        self.exchange_cards.clear();
         Ok(true)
     }
 

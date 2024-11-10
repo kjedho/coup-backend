@@ -7,6 +7,7 @@ use std::{
 
 use crate::game::game::Game;
 use crate::game::player::Player;
+use crate::game::card::Card;
 use super::state::{ GameState, LobbyState };
 
 use uuid::Uuid;
@@ -66,6 +67,8 @@ pub struct Action {
     pub client_uuid: Uuid,
     pub action: String,
     pub target_name: Option<String>,
+    pub selected_card1: Option<String>,
+    pub selected_card2: Option<String>,
 }
 
 #[derive(Debug)]
@@ -217,15 +220,30 @@ impl Handler<Action> for ChatServer {
                 }
             } else {
                 let mut temp_player = game.players.get_mut(player_index).unwrap().clone();
+                let mut selected_cards = vec![];
 
-                result = match msg.action.as_str() {
+                if let Some(selected_card1) = msg.selected_card1 {
+                    selected_cards.push(Card::from_str(selected_card1.as_str()));
+                }
+
+                if let Some(selected_card2) = msg.selected_card2 {
+                    selected_cards.push(Card::from_str(selected_card2.as_str()));
+                }
+
+                let result1 = match msg.action.as_str() {
                     "income" => temp_player.income(game),
                     "foreign_aid" => temp_player.foreign_aid(game),
                     "tax" => temp_player.tax(game),
-                    "exchange" => temp_player.exchange(game),
-                    _ => Err("Invalid targeted action"),
+                    "exchange_confirm" => temp_player.exchange_confirm(game, &selected_cards),
+                    _ => Ok(false),
                 };
-                if result.is_ok() {
+
+                let result2 = match msg.action.as_str() {
+                    "exchange_draw" => temp_player.exchange_draw(game),
+                    _ => Ok(vec![]),
+                };
+
+                if result1.unwrap() || !result2.unwrap().is_empty() {
                     game.players[player_index] = temp_player;
                 }
             }

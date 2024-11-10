@@ -23,4 +23,15 @@ impl Card {
             visible: false,
         }
     }
+
+    pub fn from_str(card: &str) -> Self {
+        match card {
+            "Assassin" => Self::new(Role::Assassin),
+            "Contessa" => Self::new(Role::Contessa),
+            "Captain" => Self::new(Role::Captain),
+            "Duke" => Self::new(Role::Duke),
+            "Ambassador" => Self::new(Role::Ambassador),
+            _ => panic!("Invalid card"),
+        }
+    }
 }

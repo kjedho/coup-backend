@@ -23,10 +23,13 @@ impl GameState {
         for player in game.players.iter() {
             let is_current_player = player.uuid == *player_uuid;
             let visible_cards ;
+            let exchange_cards ;
             if is_current_player {
                 visible_cards = player.cards.clone();
+                exchange_cards = player.exchange_cards.clone();
             } else {
                 visible_cards = player.cards.iter().filter(|card| card.visible).cloned().collect();
+                exchange_cards = vec![];
             }
             game_state.players.push((Player {
                 uuid: player.uuid,
@@ -34,6 +37,7 @@ impl GameState {
                 is_alive: player.is_alive,
                 coins: player.coins,
                 cards: visible_cards,
+                exchange_cards: exchange_cards,
             }, (player.name == game_state.current_player && is_current_player)));
         }
         game_state
