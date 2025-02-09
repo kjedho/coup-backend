@@ -15,7 +15,8 @@ enum TurnInput {
     AllowAction,
     NoBluffCallAndBlockPossible,
     NoBluffCallAndBlockImpossible,
-    None
+    None,
+    NextTurn
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -70,11 +71,11 @@ impl StateMachineImpl for TurnStateMachine {
                 Some(TurnState::LoseInfluenceBluffCaller)
             }
             // Lose influence (bluff receiver)
-            (TurnState::LoseInfluenceBluffReceiver, _) => {
+            (TurnState::LoseInfluenceBluffReceiver, TurnInput::None) => {
                 Some(TurnState::GainGold)
             }
             // Gain gold
-            (TurnState::GainGold, _) => {
+            (TurnState::GainGold, TurnInput::None) => {
                 Some(TurnState::EndTurn)
             }
             // Lose influence (bluff caller)
@@ -92,8 +93,12 @@ impl StateMachineImpl for TurnStateMachine {
                 Some(TurnState::ExecuteAction)
             }
             // Execute action
-            (TurnState::ExecuteAction, _) => {
+            (TurnState::ExecuteAction, TurnInput::None) => {
                 Some(TurnState::EndTurn)
+            }
+            // End turn
+            (TurnState::EndTurn, TurnInput::NextTurn) => {
+                Some(TurnState::SelectAction)
             }
             _ => None,
         }
