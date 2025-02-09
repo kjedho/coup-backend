@@ -15,7 +15,6 @@ use actix_web_actors::ws;
 use actix_cors::Cors;
 use uuid::Uuid;
 
-mod api;
 mod websocket;
 mod game;
 
