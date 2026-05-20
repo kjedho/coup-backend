@@ -4,7 +4,7 @@ use std::{
     time::Duration,
 };
 
-use crate::game::action_properties::get_action_properties;
+use crate::game::action_properties::{display_action_name, get_action_properties};
 use crate::game::card::{Card, Role};
 use crate::game::game::Game;
 use crate::game::player::Player;
@@ -359,6 +359,25 @@ impl ChatServer {
         }
     }
 
+    /// Remove a player from any room they are currently in.
+    /// Cleans up empty rooms.
+    fn remove_from_rooms(&mut self, player_uuid: &Uuid) {
+        let room_uuid = player_to_game(player_uuid, self);
+        if let Some(room_uuid) = room_uuid {
+            let should_remove = {
+                let game = match self.rooms.get_mut(&room_uuid) {
+                    Some(g) => g,
+                    None => return,
+                };
+                game.players.retain(|p| p.uuid != *player_uuid);
+                game.players.is_empty()
+            };
+            if should_remove {
+                self.rooms.remove(&room_uuid);
+            }
+        }
+    }
+
     fn send_to_player(&self, player_uuid: &Uuid, message: &ServerMessage) {
         if let Some(addr) = self.sessions.get(player_uuid) {
             if let Ok(json) = serde_json::to_string(message) {
@@ -521,11 +540,13 @@ impl ChatServer {
             None => return,
         };
 
+        let action_display = display_action_name(&turn_ctx.action);
+
         match &turn_ctx.phase {
             TurnPhase::AwaitingChallengeResponses => {
                 let msg = ServerMessage::ChallengePrompt {
                     actor: turn_ctx.actor_name.clone(),
-                    action: turn_ctx.action.clone(),
+                    action: action_display.clone(),
                     claimed_role: turn_ctx
                         .claimed_role
                         .map(|r| format!("{:?}", r))
@@ -553,7 +574,7 @@ impl ChatServer {
 
                 let msg = ServerMessage::BlockPrompt {
                     actor: turn_ctx.actor_name.clone(),
-                    action: turn_ctx.action.clone(),
+                    action: action_display.clone(),
                     blockable_by,
                     target: turn_ctx.target_name.clone(),
                     deadline_secs: PHASE_DEADLINE_SECS,
@@ -581,7 +602,7 @@ impl ChatServer {
                     let msg = ServerMessage::BlockChallengePrompt {
                         blocker: block_info.blocker_name.clone(),
                         claimed_role: format!("{:?}", block_info.claimed_role),
-                        original_action: turn_ctx.action.clone(),
+                        original_action: action_display.clone(),
                         deadline_secs: PHASE_DEADLINE_SECS,
                     };
                     let blocker_uuid = block_info.blocker_uuid;
@@ -1149,6 +1170,8 @@ impl Handler<Join> for ChatServer {
             client_name,
         } = msg;
 
+        self.remove_from_rooms(&client_uuid);
+
         {
             let game = match self.rooms.get_mut(&room_uuid) {
                 Some(g) => g,
@@ -1185,6 +1208,8 @@ impl Handler<Create> for ChatServer {
             client_uuid,
             client_name,
         } = msg;
+
+        self.remove_from_rooms(&client_uuid);
 
         let room_uuid = Uuid::new_v4();
         self.rooms.insert(

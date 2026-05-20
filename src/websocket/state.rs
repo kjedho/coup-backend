@@ -1,3 +1,4 @@
+use crate::game::action_properties::display_action_name;
 use crate::game::card::Role;
 use crate::game::game::{AvailableAction, Game};
 use crate::game::player::Player;
@@ -89,6 +90,7 @@ impl GameState {
                 .unwrap();
             format!("{} is choosing which influence to lose", pending_player.name)
         } else if let Some(ctx) = &game.turn_context {
+            let action = display_action_name(&ctx.action);
             match &ctx.phase {
                 TurnPhase::AwaitingChallengeResponses => {
                     if let Some(ref target_name) = ctx.target_name {
@@ -98,7 +100,7 @@ impl GameState {
                             ctx.claimed_role
                                 .map(|r| format!("{:?}", r))
                                 .unwrap_or_default(),
-                            ctx.action,
+                            action,
                             target_name
                         )
                     } else {
@@ -108,7 +110,7 @@ impl GameState {
                             ctx.claimed_role
                                 .map(|r| format!("{:?}", r))
                                 .unwrap_or_default(),
-                            ctx.action
+                            action
                         )
                     }
                 }
@@ -116,12 +118,12 @@ impl GameState {
                     if let Some(ref target_name) = ctx.target_name {
                         format!(
                             "{} wants to {} {} - waiting for blocks",
-                            ctx.actor_name, ctx.action, target_name
+                            ctx.actor_name, action, target_name
                         )
                     } else {
                         format!(
                             "{} wants to {} - waiting for blocks",
-                            ctx.actor_name, ctx.action
+                            ctx.actor_name, action
                         )
                     }
                 }
@@ -129,7 +131,7 @@ impl GameState {
                     if let Some(ref block) = ctx.block_info {
                         format!(
                             "{} claims {:?} to block {}",
-                            block.blocker_name, block.claimed_role, ctx.action
+                            block.blocker_name, block.claimed_role, action
                         )
                     } else {
                         "Waiting for block challenge responses".to_string()

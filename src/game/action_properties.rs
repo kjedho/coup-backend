@@ -8,6 +8,14 @@ pub struct ActionProperties {
     pub requires_target: bool,
 }
 
+pub fn display_action_name(action: &str) -> String {
+    match action {
+        "foreign_aid" => "foreign aid".to_string(),
+        "exchange_draw" => "exchange".to_string(),
+        _ => action.to_string(),
+    }
+}
+
 pub fn get_action_properties(action: &str) -> Option<ActionProperties> {
     match action {
         "income" => Some(ActionProperties {
