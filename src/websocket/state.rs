@@ -1,62 +1,234 @@
-use crate::game::{game::Game, player::Player};
-use serde::{Deserialize, Serialize};
+use crate::game::card::Role;
+use crate::game::game::{AvailableAction, Game};
+use crate::game::player::Player;
+use crate::game::turn_phase::TurnPhase;
+use serde::Serialize;
 use uuid::Uuid;
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct GameState {
-    pub title: String,
-    pub subtitle: String,
-    pub players: Vec<(Player, bool)>,
-    pub coins: u8,
-    pub current_player: String,
+#[derive(Debug, Serialize, Clone)]
+pub struct CardView {
+    pub role: Option<Role>,
+    pub visible: bool,
 }
 
-impl GameState {
-    pub fn new(player_uuid: &Uuid, game: &Game) -> Self {
-        let mut game_state = Self {
-            title: format!("{}'s turn", game.players[game.current_player].name),
-            subtitle: "Choosing an action".to_string(),
-            players: vec![],
-            coins: game.coins,
-            current_player: game.players[game.current_player].name.clone(),
+#[derive(Debug, Serialize, Clone)]
+pub struct PlayerView {
+    pub name: String,
+    pub is_alive: bool,
+    pub coins: u8,
+    pub cards: Vec<CardView>,
+    pub exchange_cards: Vec<CardView>,
+    pub is_current_turn: bool,
+    pub is_self: bool,
+}
+
+impl PlayerView {
+    pub fn from_player(player: &Player, is_self: bool, is_current_turn: bool) -> Self {
+        let cards = player
+            .cards
+            .iter()
+            .map(|card| {
+                if is_self || card.visible {
+                    CardView {
+                        role: Some(card.role),
+                        visible: card.visible,
+                    }
+                } else {
+                    CardView {
+                        role: None,
+                        visible: false,
+                    }
+                }
+            })
+            .collect();
+
+        let exchange_cards = if is_self {
+            player
+                .exchange_cards
+                .iter()
+                .map(|card| CardView {
+                    role: Some(card.role),
+                    visible: card.visible,
+                })
+                .collect()
+        } else {
+            vec![]
         };
-        for player in game.players.iter() {
-            let is_current_player = player.uuid == *player_uuid;
-            let visible_cards ;
-            let exchange_cards ;
-            if is_current_player {
-                visible_cards = player.cards.clone();
-                exchange_cards = player.exchange_cards.clone();
-            } else {
-                visible_cards = player.cards.iter().filter(|card| card.visible).cloned().collect();
-                exchange_cards = vec![];
-            }
-            game_state.players.push((Player {
-                uuid: player.uuid,
-                name: player.name.clone(),
-                is_alive: player.is_alive,
-                coins: player.coins,
-                cards: visible_cards,
-                exchange_cards: exchange_cards,
-            }, (player.name == game_state.current_player && is_current_player)));
+
+        PlayerView {
+            name: player.name.clone(),
+            is_alive: player.is_alive,
+            coins: player.coins,
+            cards,
+            exchange_cards,
+            is_current_turn,
+            is_self,
         }
-        game_state
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Clone)]
+pub struct GameState {
+    pub title: String,
+    pub subtitle: String,
+    pub players: Vec<PlayerView>,
+    pub coins: u8,
+    pub current_player: String,
+    pub available_actions: Vec<AvailableAction>,
+}
+
+impl GameState {
+    pub fn for_player(player_uuid: &Uuid, game: &Game) -> Self {
+        let current = &game.players[game.current_player];
+
+        let subtitle = if let Some(pending_uuid) = &game.pending_influence_loss {
+            let pending_player = game
+                .players
+                .iter()
+                .find(|p| p.uuid == *pending_uuid)
+                .unwrap();
+            format!("{} is choosing which influence to lose", pending_player.name)
+        } else if let Some(ctx) = &game.turn_context {
+            match &ctx.phase {
+                TurnPhase::AwaitingChallengeResponses => {
+                    if let Some(ref target_name) = ctx.target_name {
+                        format!(
+                            "{} claims {} to {} {}",
+                            ctx.actor_name,
+                            ctx.claimed_role
+                                .map(|r| format!("{:?}", r))
+                                .unwrap_or_default(),
+                            ctx.action,
+                            target_name
+                        )
+                    } else {
+                        format!(
+                            "{} claims {} to {}",
+                            ctx.actor_name,
+                            ctx.claimed_role
+                                .map(|r| format!("{:?}", r))
+                                .unwrap_or_default(),
+                            ctx.action
+                        )
+                    }
+                }
+                TurnPhase::AwaitingBlockResponses => {
+                    if let Some(ref target_name) = ctx.target_name {
+                        format!(
+                            "{} wants to {} {} - waiting for blocks",
+                            ctx.actor_name, ctx.action, target_name
+                        )
+                    } else {
+                        format!(
+                            "{} wants to {} - waiting for blocks",
+                            ctx.actor_name, ctx.action
+                        )
+                    }
+                }
+                TurnPhase::AwaitingBlockChallengeResponses => {
+                    if let Some(ref block) = ctx.block_info {
+                        format!(
+                            "{} claims {:?} to block {}",
+                            block.blocker_name, block.claimed_role, ctx.action
+                        )
+                    } else {
+                        "Waiting for block challenge responses".to_string()
+                    }
+                }
+            }
+        } else if !game.players[game.current_player].exchange_cards.is_empty() {
+            format!("{} is exchanging cards", current.name)
+        } else {
+            "Choosing an action".to_string()
+        };
+
+        Self {
+            title: format!("{}'s turn", current.name),
+            subtitle,
+            coins: game.coins,
+            current_player: current.name.clone(),
+            available_actions: game.available_actions(player_uuid),
+            players: game
+                .players
+                .iter()
+                .map(|p| {
+                    let is_self = p.uuid == *player_uuid;
+                    let is_current_turn = p.uuid == current.uuid;
+                    PlayerView::from_player(p, is_self, is_current_turn)
+                })
+                .collect(),
+        }
+    }
+}
+
+#[derive(Debug, Serialize)]
 pub struct LobbyState {
     pub room_uuid: Uuid,
-    pub num_players: usize,
+    pub max_players: usize,
     pub players: Vec<String>,
 }
 
 impl LobbyState {
-    pub fn new(room_uuid: Uuid, game: &Game) -> Self {
+    pub fn from_game(room_uuid: Uuid, game: &Game) -> Self {
         Self {
             room_uuid,
-            num_players: game.players.capacity(),
-            players: game.players.iter().map(|player| player.name.clone()).collect::<Vec<String>>(),
+            max_players: game.max_players,
+            players: game
+                .players
+                .iter()
+                .map(|p| p.name.clone())
+                .collect(),
         }
     }
+}
+
+#[derive(Serialize)]
+#[serde(tag = "type")]
+pub enum ServerMessage {
+    #[serde(rename = "connected")]
+    Connected { player_uuid: Uuid },
+
+    #[serde(rename = "lobby_state")]
+    LobbyState(LobbyState),
+
+    #[serde(rename = "game_state")]
+    GameState(GameState),
+
+    #[serde(rename = "error")]
+    Error { message: String },
+
+    #[serde(rename = "game_over")]
+    GameOver { winner: String },
+
+    #[serde(rename = "lose_influence_choice")]
+    LoseInfluenceChoice { cards: Vec<CardView> },
+
+    #[serde(rename = "challenge_prompt")]
+    ChallengePrompt {
+        actor: String,
+        action: String,
+        claimed_role: String,
+        target: Option<String>,
+        deadline_secs: u64,
+    },
+
+    #[serde(rename = "block_prompt")]
+    BlockPrompt {
+        actor: String,
+        action: String,
+        blockable_by: Vec<String>,
+        target: Option<String>,
+        deadline_secs: u64,
+    },
+
+    #[serde(rename = "block_challenge_prompt")]
+    BlockChallengePrompt {
+        blocker: String,
+        claimed_role: String,
+        original_action: String,
+        deadline_secs: u64,
+    },
+
+    #[serde(rename = "action_result")]
+    ActionResult { message: String },
 }

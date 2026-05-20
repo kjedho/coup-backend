@@ -10,7 +10,7 @@ use std::{
     time::Instant,
 };
 use actix::*;
-use actix_web::{middleware::Logger, Error, HttpRequest, HttpResponse, Responder, http, App, HttpServer, web};
+use actix_web::{middleware::Logger, Error, HttpRequest, HttpResponse, Responder, App, HttpServer, http, web};
 use actix_web_actors::ws;
 use actix_cors::Cors;
 use uuid::Uuid;

@@ -1,8 +1,8 @@
 use std::time::{Duration, Instant};
 
-use uuid::Uuid;
 use actix::prelude::*;
 use actix_web_actors::ws;
+use uuid::Uuid;
 
 use super::server;
 
@@ -38,11 +38,11 @@ impl Actor for WsChatSession {
         self.hb(ctx);
 
         let addr = ctx.address();
-        let uuid =  Uuid::new_v4();
+        let uuid = Uuid::new_v4();
         self.addr
             .send(server::Connect {
                 addr: addr.recipient(),
-                uuid: uuid,
+                uuid,
             })
             .into_actor(self)
             .then(move |res, act, ctx| {
@@ -79,7 +79,6 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsChatSession {
             Ok(msg) => msg,
         };
 
-        println!("WEBSOCKET MESSAGE: {msg:?}");
         match msg {
             ws::Message::Ping(msg) => {
                 self.hb = Instant::now();
@@ -95,10 +94,17 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsChatSession {
                     match v[0] {
                         "/join_lobby" => {
                             if v.len() == 3 {
+                                let room_uuid = match Uuid::parse_str(v[1]) {
+                                    Ok(uuid) => uuid,
+                                    Err(_) => {
+                                        ctx.text("Invalid room UUID format.");
+                                        return;
+                                    }
+                                };
                                 self.addr.do_send(server::Join {
-                                    room_uuid: Uuid::parse_str(v[1]).expect("Invalid UUID").to_owned(),
+                                    room_uuid,
                                     client_uuid: self.uuid,
-                                    client_name: v[2].to_owned()
+                                    client_name: v[2].to_owned(),
                                 });
                             } else {
                                 ctx.text("Could not join lobby: game UUID and player name required.");
@@ -106,41 +112,91 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsChatSession {
                         }
                         "/create_lobby" => {
                             if v.len() == 3 {
+                                let num_players = match v[1].parse::<usize>() {
+                                    Ok(n) => n,
+                                    Err(_) => {
+                                        ctx.text("Invalid number of players.");
+                                        return;
+                                    }
+                                };
                                 self.addr.do_send(server::Create {
-                                    number_of_players: v[1].parse::<usize>().expect("Invalid usize").to_owned(),
+                                    number_of_players: num_players,
                                     client_uuid: self.uuid,
                                     client_name: v[2].to_owned(),
                                 });
-                                ctx.text("Created lobby.");
                             } else {
-                                ctx.text("Could not create lobby: number of players and player name required.");
+                                ctx.text(
+                                    "Could not create lobby: number of players and player name required.",
+                                );
                             }
                         }
                         "/start_game" => {
-                            self.addr.do_send(server::StartGame {
-                                room_uuid: Uuid::parse_str(v[1]).expect("Invalid UUID").to_owned(),
-                            });
-                        }
-                        "/action" => {
-                            if v[1].to_owned() == "exchange_confirm" {
-                                self.addr.do_send(server::Action {
-                                    client_uuid: self.uuid,
-                                    action: v[1].to_owned(),
-                                    target_name: None,
-                                    selected_card1: v.get(2).map(|s| s.to_string()),
-                                    selected_card2: v.get(3).map(|s| s.to_string()),
-                                });
+                            if v.len() >= 2 {
+                                let room_uuid = match Uuid::parse_str(v[1]) {
+                                    Ok(uuid) => uuid,
+                                    Err(_) => {
+                                        ctx.text("Invalid room UUID format.");
+                                        return;
+                                    }
+                                };
+                                self.addr.do_send(server::StartGame { room_uuid });
                             } else {
-                                self.addr.do_send(server::Action {
-                                    client_uuid: self.uuid,
-                                    action: v[1].to_owned(),
-                                    target_name: v.get(2).map(|s| s.to_string()),
-                                    selected_card1: None,
-                                    selected_card2: None,
-                                });
+                                ctx.text("Room UUID required.");
                             }
                         }
-
+                        "/action" => {
+                            if v.len() >= 2 {
+                                if v[1] == "exchange_confirm" {
+                                    self.addr.do_send(server::Action {
+                                        client_uuid: self.uuid,
+                                        action: v[1].to_owned(),
+                                        target_name: None,
+                                        selected_card1: v.get(2).map(|s| s.to_string()),
+                                        selected_card2: v.get(3).map(|s| s.to_string()),
+                                    });
+                                } else {
+                                    self.addr.do_send(server::Action {
+                                        client_uuid: self.uuid,
+                                        action: v[1].to_owned(),
+                                        target_name: v.get(2).map(|s| s.to_string()),
+                                        selected_card1: None,
+                                        selected_card2: None,
+                                    });
+                                }
+                            } else {
+                                ctx.text("Action name required.");
+                            }
+                        }
+                        "/lose_influence" => {
+                            if v.len() >= 2 {
+                                self.addr.do_send(server::LoseInfluence {
+                                    client_uuid: self.uuid,
+                                    card_role: v[1].to_owned(),
+                                });
+                            } else {
+                                ctx.text("Card role required for lose_influence.");
+                            }
+                        }
+                        "/challenge" => {
+                            self.addr.do_send(server::ChallengeAction {
+                                client_uuid: self.uuid,
+                            });
+                        }
+                        "/allow" => {
+                            self.addr.do_send(server::AllowAction {
+                                client_uuid: self.uuid,
+                            });
+                        }
+                        "/block" => {
+                            if v.len() >= 2 {
+                                self.addr.do_send(server::BlockAction {
+                                    client_uuid: self.uuid,
+                                    claimed_role: v[1].to_owned(),
+                                });
+                            } else {
+                                ctx.text("Role required for block.");
+                            }
+                        }
                         _ => ctx.text(format!("Unknown command: {m:?}")),
                     }
                 }

@@ -1,10 +1,8 @@
-use std::vec;
-use rand::Rng;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+
 use super::card::Card;
 use super::game::Game;
-
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct Player {
@@ -28,21 +26,36 @@ impl Player {
         }
     }
 
-    pub fn lose_influence(&mut self) -> Result<bool, &'static str> {
-        let cards_remaining = self.cards.iter().filter(|card| !card.visible).count();
-        match cards_remaining {
+    pub fn lose_influence(&mut self, role_name: Option<&str>) -> Result<bool, &'static str> {
+        let hidden_count = self.cards.iter().filter(|c| !c.visible).count();
+        match hidden_count {
             0 => Err("Cannot lose influence"),
             1 => {
-                self.cards.iter_mut().find(|card| !card.visible).unwrap().visible = true;
+                self.cards
+                    .iter_mut()
+                    .find(|c| !c.visible)
+                    .unwrap()
+                    .visible = true;
                 self.is_alive = false;
                 Ok(true)
             }
             2 => {
-                //TODO: give player choice of card to lose in some way
-                let mut rng = rand::thread_rng();
-                let index = rng.gen_range(0..2);
-                self.cards[index].visible = true;
-                Ok(true)
+                if let Some(name) = role_name {
+                    let card = self
+                        .cards
+                        .iter_mut()
+                        .find(|c| !c.visible && format!("{:?}", c.role) == name);
+                    match card {
+                        Some(c) => {
+                            c.visible = true;
+                            Ok(true)
+                        }
+                        None => Err("You don't have that card"),
+                    }
+                } else {
+                    // No choice provided, caller should prompt the player
+                    Err("Must choose which card to lose")
+                }
             }
             _ => Err("Invalid number of cards"),
         }
@@ -78,7 +91,8 @@ impl Player {
         }
         self.coins -= 7;
         game.coins += 7;
-        target.lose_influence()
+        // Influence loss is handled by the caller so the target can choose
+        Ok(true)
     }
 
     pub fn tax(&mut self, game: &mut Game) -> Result<bool, &'static str> {
@@ -90,7 +104,11 @@ impl Player {
         Ok(true)
     }
 
-    pub fn assassinate(&mut self, game: &mut Game, target: &mut Player) -> Result<bool, &'static str> {
+    pub fn assassinate(
+        &mut self,
+        game: &mut Game,
+        target: &mut Player,
+    ) -> Result<bool, &'static str> {
         if self.coins < 3 {
             return Err("Not enough coins to assassinate");
         }
@@ -102,12 +120,13 @@ impl Player {
         }
         self.coins -= 3;
         game.coins += 3;
-        target.lose_influence()
+        // Influence loss is handled by the caller so the target can choose
+        Ok(true)
     }
 
     pub fn exchange_draw(&mut self, game: &mut Game) -> Result<Vec<Card>, &'static str> {
         self.exchange_cards.clear();
-        for card in self.cards.iter_mut() {
+        for card in self.cards.iter() {
             if !card.visible {
                 self.exchange_cards.push(*card);
             }
@@ -119,29 +138,33 @@ impl Player {
         Ok(self.exchange_cards.clone())
     }
 
-    pub fn exchange_confirm(&mut self, game: &mut Game, cards: &Vec<Card>) -> Result<bool, &'static str> {
-        if cards.iter().filter(|&c| !c.visible).count() != self.exchange_cards.len()-2 {
-            return Err("Invalid number of cards");
+    pub fn exchange_confirm(
+        &mut self,
+        game: &mut Game,
+        cards: &[Card],
+    ) -> Result<bool, &'static str> {
+        let hidden_count = self.cards.iter().filter(|c| !c.visible).count();
+        if cards.len() != hidden_count {
+            return Err("Invalid number of cards selected");
         }
         for card in cards {
             if !self.exchange_cards.contains(card) {
                 return Err("Invalid card");
             }
         }
-        if cards.len() == 2 {
-            self.cards = cards.clone();
-        } else {
-            let index = self.cards.iter().position(|card| !card.visible).unwrap();
-            self.cards[index] = cards[0];
-        }
-        for card in self.cards.iter() {
-            if !card.visible {
-                let index = self.exchange_cards.iter().position(|c| c == card).unwrap();
-                self.exchange_cards.remove(index);
+        // Replace hidden cards with selected cards
+        let mut card_idx = 0;
+        for i in 0..self.cards.len() {
+            if !self.cards[i].visible {
+                self.cards[i] = cards[card_idx];
+                card_idx += 1;
             }
         }
+        // Return unselected cards to deck
         for card in self.exchange_cards.iter() {
-            game.deck.return_card(*card).unwrap();
+            if !cards.contains(card) {
+                game.deck.return_card(*card).unwrap();
+            }
         }
         self.exchange_cards.clear();
         Ok(true)
@@ -156,14 +179,4 @@ impl Player {
         target.coins -= coins_stolen;
         Ok(true)
     }
-
-    pub fn call_bluff(&mut self, target: &mut Player, card: Card) -> Result<bool, &'static str> {
-        if target.cards.contains(&card) {
-            self.lose_influence()?;
-        } else {
-            target.lose_influence()?;
-        }
-        Ok(true)
-    }
-
 }

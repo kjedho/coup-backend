@@ -24,14 +24,14 @@ impl Card {
         }
     }
 
-    pub fn from_str(card: &str) -> Self {
+    pub fn from_str(card: &str) -> Result<Self, &'static str> {
         match card {
-            "Assassin" => Self::new(Role::Assassin),
-            "Contessa" => Self::new(Role::Contessa),
-            "Captain" => Self::new(Role::Captain),
-            "Duke" => Self::new(Role::Duke),
-            "Ambassador" => Self::new(Role::Ambassador),
-            _ => panic!("Invalid card"),
+            "Assassin" => Ok(Self::new(Role::Assassin)),
+            "Contessa" => Ok(Self::new(Role::Contessa)),
+            "Captain" => Ok(Self::new(Role::Captain)),
+            "Duke" => Ok(Self::new(Role::Duke)),
+            "Ambassador" => Ok(Self::new(Role::Ambassador)),
+            _ => Err("Invalid card role"),
         }
     }
 }

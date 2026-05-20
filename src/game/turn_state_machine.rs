@@ -1,6 +1,4 @@
 use rust_fsm::*;
-use std::sync::{Arc, Mutex};
-use std::time::Duration;
 
 #[derive(Debug)]
 enum TurnInput {
@@ -104,21 +102,15 @@ impl StateMachineImpl for TurnStateMachine {
         }
     }
 
-    fn output(state: &Self::State, input: &Self::Input) -> Option<Self::Output> {
-        match (state, input) {
-            // (CircuitBreakerState::Closed, CircuitBreakerInput::Unsuccessful) => {
-            //     Some(CircuitBreakerOutputSetTimer)
-            // }
-            // (CircuitBreakerState::HalfOpen, CircuitBreakerInput::Unsuccessful) => {
-            //     Some(CircuitBreakerOutputSetTimer)
-            // }
-            _ => None,
-        }
+    fn output(_state: &Self::State, _input: &Self::Input) -> Option<Self::Output> {
+        None
     }
 }
 
 #[test]
 fn coup_turn() {
+    use std::sync::{Arc, Mutex};
+
     let machine: StateMachine<TurnStateMachine> = StateMachine::new();
 
     // State: Select action (init)
@@ -161,13 +153,5 @@ fn coup_turn() {
         // State: End turn
         assert_eq!(lock.state(), &TurnState::EndTurn);
     }
-
-    // std::thread::spawn(move || {
-    //     std::thread::sleep(Duration::new(5, 0));
-    //     let mut lock = machine.lock().unwrap();
-    //     let res = lock.consume(&TurnInput::BluffCall).unwrap();
-    //     // assert_eq!(res, None);
-    //     assert_eq!(lock.state(), &TurnState::Resolve);
-    // });
 
 }
