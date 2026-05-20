@@ -61,69 +61,6 @@ impl Player {
         }
     }
 
-    pub fn income(&mut self, game: &mut Game) -> Result<bool, &'static str> {
-        if game.coins == 0 {
-            return Err("No coins left");
-        }
-        self.coins += 1;
-        game.coins -= 1;
-        Ok(true)
-    }
-
-    pub fn foreign_aid(&mut self, game: &mut Game) -> Result<bool, &'static str> {
-        if game.coins < 2 {
-            return Err("Not enough coins left");
-        }
-        self.coins += 2;
-        game.coins -= 2;
-        Ok(true)
-    }
-
-    pub fn coup(&mut self, game: &mut Game, target: &mut Player) -> Result<bool, &'static str> {
-        if self.coins < 7 {
-            return Err("Not enough coins to coup");
-        }
-        if self == target {
-            return Err("Cannot coup yourself");
-        }
-        if !target.is_alive {
-            return Err("Target is already dead");
-        }
-        self.coins -= 7;
-        game.coins += 7;
-        // Influence loss is handled by the caller so the target can choose
-        Ok(true)
-    }
-
-    pub fn tax(&mut self, game: &mut Game) -> Result<bool, &'static str> {
-        if game.coins < 3 {
-            return Err("Not enough coins left");
-        }
-        self.coins += 3;
-        game.coins -= 3;
-        Ok(true)
-    }
-
-    pub fn assassinate(
-        &mut self,
-        game: &mut Game,
-        target: &mut Player,
-    ) -> Result<bool, &'static str> {
-        if self.coins < 3 {
-            return Err("Not enough coins to assassinate");
-        }
-        if self == target {
-            return Err("Cannot assassinate yourself");
-        }
-        if !target.is_alive {
-            return Err("Target is already dead");
-        }
-        self.coins -= 3;
-        game.coins += 3;
-        // Influence loss is handled by the caller so the target can choose
-        Ok(true)
-    }
-
     pub fn exchange_draw(&mut self, game: &mut Game) -> Result<Vec<Card>, &'static str> {
         self.exchange_cards.clear();
         for card in self.cards.iter() {
@@ -170,13 +107,4 @@ impl Player {
         Ok(true)
     }
 
-    pub fn steal(&mut self, target: &mut Player) -> Result<bool, &'static str> {
-        if target.coins == 0 {
-            return Err("Target has no coins to steal");
-        }
-        let coins_stolen = std::cmp::min(target.coins, 2);
-        self.coins += coins_stolen;
-        target.coins -= coins_stolen;
-        Ok(true)
-    }
 }

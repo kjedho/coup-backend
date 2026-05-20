@@ -1,5 +1,5 @@
 use rand::Rng;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use uuid::Uuid;
 
 use super::deck::Deck;
@@ -48,6 +48,9 @@ impl Game {
     pub fn add_player(&mut self, player: Player) -> Result<(), &'static str> {
         if self.players.len() >= self.max_players {
             return Err("Lobby is full");
+        }
+        if self.players.iter().any(|p| p.name == player.name) {
+            return Err("A player with that name is already in the lobby");
         }
         self.players.push(player);
         Ok(())

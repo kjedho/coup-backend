@@ -39,7 +39,6 @@ pub struct Disconnect {
 #[derive(Message)]
 #[rtype(result = "()")]
 pub struct ClientMessage {
-    pub client_uuid: Uuid,
     pub room_uuid: Uuid,
     pub msg: String,
 }
@@ -611,21 +610,27 @@ impl ChatServer {
         generation: u64,
         ctx: &mut Context<Self>,
     ) {
-        let current_gen = {
-            let game = match self.rooms.get(&room_uuid) {
-                Some(g) => g,
-                None => return,
-            };
-            match &game.turn_context {
-                Some(c) => c.timer_generation,
-                None => return,
-            }
+        let game = match self.rooms.get(&room_uuid) {
+            Some(g) => g,
+            None => return,
+        };
+
+        // Don't fire if waiting for a player to choose which card to lose
+        if game.pending_influence_loss.is_some() {
+            return;
+        }
+
+        let current_gen = match &game.turn_context {
+            Some(c) => c.timer_generation,
+            None => return,
         };
 
         if current_gen != generation {
             return; // Stale timer, a new phase has started since
         }
 
+        // Release the borrow before calling on_all_allowed
+        let _ = game;
         self.on_all_allowed(&room_uuid, ctx);
     }
 
@@ -709,7 +714,9 @@ impl ChatServer {
                 self.finish_turn(room_uuid);
             }
             Ok(ActionOutcome::WaitingForInfluenceChoice(target_uuid)) => {
-                // after_influence_loss was already set by execute_action_effect
+                // Broadcast game state first so frontend clears stale state,
+                // then send the choice prompt which sets new state.
+                self.broadcast_game_state(room_uuid);
                 if let Some(game) = self.rooms.get(room_uuid) {
                     if let Some(target) = game.players.iter().find(|p| p.uuid == target_uuid) {
                         let cards: Vec<CardView> = target
@@ -727,7 +734,6 @@ impl ChatServer {
                         );
                     }
                 }
-                self.broadcast_game_state(room_uuid);
             }
             Ok(ActionOutcome::WaitingForExchange) => {
                 if let Some(game) = self.rooms.get_mut(room_uuid) {
@@ -956,9 +962,13 @@ impl ChatServer {
                 game.pending_influence_loss = Some(player_uuid);
                 if let Some(ref mut turn_ctx) = game.turn_context {
                     turn_ctx.after_influence_loss = Some(after);
+                    // Bump generation to invalidate any pending phase timer,
+                    // preventing it from firing during the influence choice period.
+                    turn_ctx.next_generation();
                 }
             }
-            // Send choice prompt
+            // Broadcast game state first, then send choice prompt
+            self.broadcast_game_state(room_uuid);
             if let Some(game) = self.rooms.get(room_uuid) {
                 if let Some(player) = game.players.iter().find(|p| p.uuid == player_uuid) {
                     let cards: Vec<CardView> = player
@@ -976,7 +986,6 @@ impl ChatServer {
                     );
                 }
             }
-            self.broadcast_game_state(room_uuid);
         }
     }
 
@@ -1250,6 +1259,7 @@ impl Handler<Action> for ChatServer {
                 self.finish_turn(&room_uuid);
             }
             Ok(ActionOutcome::WaitingForInfluenceChoice(target_uuid)) => {
+                self.broadcast_game_state(&room_uuid);
                 if let Some(game) = self.rooms.get(&room_uuid) {
                     if let Some(target) = game.players.iter().find(|p| p.uuid == target_uuid) {
                         let cards: Vec<CardView> = target
@@ -1267,7 +1277,6 @@ impl Handler<Action> for ChatServer {
                         );
                     }
                 }
-                self.broadcast_game_state(&room_uuid);
             }
             Ok(ActionOutcome::WaitingForExchange) => {
                 self.broadcast_game_state(&room_uuid);
