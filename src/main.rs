@@ -1,4 +1,5 @@
 use std::{
+    env,
     net::Ipv4Addr,
     sync::{
         Arc,
@@ -42,23 +43,47 @@ async fn get_count(count: web::Data<AtomicUsize>) -> impl Responder {
     format!("Visitors: {current_count}")
 }
 
+fn build_cors() -> Cors {
+    // Read allowed origins from CORS_ORIGINS env var (comma-separated)
+    // Default: http://localhost:5173 for local development
+    let origins_str = env::var("CORS_ORIGINS")
+        .unwrap_or_else(|_| "http://localhost:5173".to_string());
+    
+    let origins: Vec<&str> = origins_str.split(',').map(|s| s.trim()).collect();
+    
+    let mut cors = Cors::default()
+        .allowed_methods(vec!["GET", "POST"])
+        .allowed_header(http::header::CONTENT_TYPE)
+        .max_age(3600);
+    
+    for origin in origins {
+        if !origin.is_empty() {
+            cors = cors.allowed_origin(origin);
+        }
+    }
+    
+    cors
+}
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    let ip: Ipv4Addr = Ipv4Addr::new(127, 0, 0, 1);
-    let port: u16 = 8080;
+    // Read host and port from environment variables with defaults
+    let host = env::var("HOST").unwrap_or_else(|_| "127.0.0.1".to_string());
+    let port: u16 = env::var("PORT")
+        .unwrap_or_else(|_| "8080".to_string())
+        .parse()
+        .expect("PORT must be a valid number");
+    
+    let ip: Ipv4Addr = host.parse().expect("HOST must be a valid IPv4 address");
+    
     let app_state = Arc::new(AtomicUsize::new(0));
     let server = server::ChatServer::new(app_state.clone()).start();
 
     println!("Starting server at {}:{}", ip, port);
 
     HttpServer::new(move || {
-        let cors = Cors::default()
-            .allowed_origin("http://localhost:5173")
-            .allowed_methods(vec!["GET", "POST"])
-            .allowed_header(http::header::CONTENT_TYPE)
-            .max_age(3600);
         App::new()
-            .wrap(cors)
+            .wrap(build_cors())
             .app_data(web::Data::from(app_state.clone()))
             .app_data(web::Data::new(server.clone()))
             .route("/count", web::get().to(get_count))
