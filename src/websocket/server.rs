@@ -851,13 +851,22 @@ impl ChatServer {
                 ctx,
             );
         } else {
-            // Challenge succeeded: actor was bluffing
+            // Challenge succeeded: actor was bluffing, challenger earns a coin
+            if let Some(game) = self.rooms.get_mut(room_uuid) {
+                if let Some(player) = game.players.iter_mut().find(|p| p.uuid == challenger_uuid) {
+                    player.coins += 1;
+                    if game.coins > 0 {
+                        game.coins -= 1;
+                    }
+                }
+            }
+
             self.broadcast_to_room(
                 room_uuid,
                 &ServerMessage::ActionResult {
                     message: format!(
-                        "{} challenged and {} was bluffing! {} loses influence.",
-                        challenger_name, actor_name, actor_name
+                        "{} challenged and {} was bluffing! {} loses influence. {} earns 1 coin.",
+                        challenger_name, actor_name, actor_name, challenger_name
                     ),
                 },
             );
@@ -937,13 +946,22 @@ impl ChatServer {
                 ctx,
             );
         } else {
-            // Block-challenge succeeded: blocker was bluffing, action proceeds
+            // Block-challenge succeeded: blocker was bluffing, challenger earns a coin
+            if let Some(game) = self.rooms.get_mut(room_uuid) {
+                if let Some(player) = game.players.iter_mut().find(|p| p.uuid == challenger_uuid) {
+                    player.coins += 1;
+                    if game.coins > 0 {
+                        game.coins -= 1;
+                    }
+                }
+            }
+
             self.broadcast_to_room(
                 room_uuid,
                 &ServerMessage::ActionResult {
                     message: format!(
-                        "{} challenged the block and {} was bluffing! {} loses influence.",
-                        challenger_name, blocker_name, blocker_name
+                        "{} challenged the block and {} was bluffing! {} loses influence. {} earns 1 coin.",
+                        challenger_name, blocker_name, blocker_name, challenger_name
                     ),
                 },
             );
