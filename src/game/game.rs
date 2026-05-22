@@ -27,6 +27,17 @@ pub struct Game {
     pub max_players: usize,
     pub turn_context: Option<TurnContext>,
     pub pending_influence_loss: Option<Uuid>,
+    pub room_code: String,
+}
+
+const CODE_CHARS: &[u8] = b"ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+const CODE_LENGTH: usize = 4;
+
+fn generate_room_code() -> String {
+    let mut rng = rand::thread_rng();
+    (0..CODE_LENGTH)
+        .map(|_| CODE_CHARS[rng.gen_range(0..CODE_CHARS.len())] as char)
+        .collect()
 }
 
 impl Game {
@@ -42,6 +53,7 @@ impl Game {
             max_players: num_players,
             turn_context: None,
             pending_influence_loss: None,
+            room_code: generate_room_code(),
         }
     }
 

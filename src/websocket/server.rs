@@ -46,7 +46,7 @@ pub struct ClientMessage {
 #[derive(Message)]
 #[rtype(result = "()")]
 pub struct Join {
-    pub room_uuid: Uuid,
+    pub room_code: String,
     pub client_uuid: Uuid,
     pub client_name: String,
 }
@@ -62,7 +62,7 @@ pub struct Create {
 #[derive(Message)]
 #[rtype(result = "()")]
 pub struct StartGame {
-    pub room_uuid: Uuid,
+    pub room_code: String,
 }
 
 #[derive(Message)]
@@ -357,6 +357,17 @@ impl ChatServer {
             rooms: HashMap::new(),
             visitor_count,
         }
+    }
+
+    /// Find a room UUID by its short room code.
+    fn find_room_by_code(&self, code: &str) -> Option<Uuid> {
+        let code_upper = code.to_uppercase();
+        for (room_uuid, game) in self.rooms.iter() {
+            if game.room_code == code_upper {
+                return Some(*room_uuid);
+            }
+        }
+        None
     }
 
     /// Remove a player from any room they are currently in.
@@ -1165,10 +1176,18 @@ impl Handler<Join> for ChatServer {
 
     fn handle(&mut self, msg: Join, _: &mut Context<Self>) {
         let Join {
-            room_uuid,
+            room_code,
             client_uuid,
             client_name,
         } = msg;
+
+        let room_uuid = match self.find_room_by_code(&room_code) {
+            Some(uuid) => uuid,
+            None => {
+                self.send_error(&client_uuid, "Room not found");
+                return;
+            }
+        };
 
         self.remove_from_rooms(&client_uuid);
 
@@ -1193,7 +1212,7 @@ impl Handler<Join> for ChatServer {
 
         let lobby_state = {
             let game = self.rooms.get(&room_uuid).unwrap();
-            LobbyState::from_game(room_uuid, game)
+            LobbyState::from_game(game)
         };
         self.broadcast_to_room(&room_uuid, &ServerMessage::LobbyState(lobby_state));
     }
@@ -1219,7 +1238,7 @@ impl Handler<Create> for ChatServer {
 
         let lobby_state = {
             let game = self.rooms.get(&room_uuid).unwrap();
-            LobbyState::from_game(room_uuid, game)
+            LobbyState::from_game(game)
         };
         self.send_to_player(&client_uuid, &ServerMessage::LobbyState(lobby_state));
     }
@@ -1229,8 +1248,12 @@ impl Handler<StartGame> for ChatServer {
     type Result = ();
 
     fn handle(&mut self, msg: StartGame, _: &mut Context<Self>) {
+        let room_uuid = match self.find_room_by_code(&msg.room_code) {
+            Some(uuid) => uuid,
+            None => return,
+        };
         {
-            let game = match self.rooms.get_mut(&msg.room_uuid) {
+            let game = match self.rooms.get_mut(&room_uuid) {
                 Some(g) => g,
                 None => return,
             };
@@ -1243,7 +1266,7 @@ impl Handler<StartGame> for ChatServer {
                 return;
             }
         }
-        self.broadcast_game_state(&msg.room_uuid);
+        self.broadcast_game_state(&room_uuid);
     }
 }
 

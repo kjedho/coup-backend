@@ -94,20 +94,13 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsChatSession {
                     match v[0] {
                         "/join_lobby" => {
                             if v.len() == 3 {
-                                let room_uuid = match Uuid::parse_str(v[1]) {
-                                    Ok(uuid) => uuid,
-                                    Err(_) => {
-                                        ctx.text("Invalid room UUID format.");
-                                        return;
-                                    }
-                                };
                                 self.addr.do_send(server::Join {
-                                    room_uuid,
+                                    room_code: v[1].to_owned(),
                                     client_uuid: self.uuid,
                                     client_name: v[2].to_owned(),
                                 });
                             } else {
-                                ctx.text("Could not join lobby: game UUID and player name required.");
+                                ctx.text("Room code and player name required.");
                             }
                         }
                         "/create_lobby" => {
@@ -132,16 +125,11 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsChatSession {
                         }
                         "/start_game" => {
                             if v.len() >= 2 {
-                                let room_uuid = match Uuid::parse_str(v[1]) {
-                                    Ok(uuid) => uuid,
-                                    Err(_) => {
-                                        ctx.text("Invalid room UUID format.");
-                                        return;
-                                    }
-                                };
-                                self.addr.do_send(server::StartGame { room_uuid });
+                                self.addr.do_send(server::StartGame {
+                                    room_code: v[1].to_owned(),
+                                });
                             } else {
-                                ctx.text("Room UUID required.");
+                                ctx.text("Room code required.");
                             }
                         }
                         "/action" => {

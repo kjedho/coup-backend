@@ -165,21 +165,23 @@ impl GameState {
 
 #[derive(Debug, Serialize)]
 pub struct LobbyState {
-    pub room_uuid: Uuid,
+    pub room_code: String,
     pub max_players: usize,
     pub players: Vec<String>,
+    pub creator_uuid: Uuid,
 }
 
 impl LobbyState {
-    pub fn from_game(room_uuid: Uuid, game: &Game) -> Self {
+    pub fn from_game(game: &Game) -> Self {
         Self {
-            room_uuid,
+            room_code: game.room_code.clone(),
             max_players: game.max_players,
             players: game
                 .players
                 .iter()
                 .map(|p| p.name.clone())
                 .collect(),
+            creator_uuid: game.players[0].uuid,
         }
     }
 }
