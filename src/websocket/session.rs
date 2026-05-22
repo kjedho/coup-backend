@@ -187,6 +187,21 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsChatSession {
                         }
                         _ => ctx.text(format!("Unknown command: {m:?}")),
                     }
+                } else if m.starts_with('{') {
+                    // JSON signaling message for WebRTC
+                    if let Ok(json) = serde_json::from_str::<serde_json::Value>(m) {
+                        if json.get("signal_type").is_some() {
+                            if let Some(to_uuid_str) = json.get("to_uuid").and_then(|v| v.as_str()) {
+                                if let Ok(to_uuid) = Uuid::parse_str(to_uuid_str) {
+                                    self.addr.do_send(server::SignalRelay {
+                                        from_uuid: self.uuid,
+                                        to_uuid,
+                                        payload: m.to_owned(),
+                                    });
+                                }
+                            }
+                        }
+                    }
                 }
             }
             ws::Message::Binary(_) => println!("Unexpected binary"),

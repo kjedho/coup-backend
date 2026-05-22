@@ -14,6 +14,7 @@ pub struct CardView {
 
 #[derive(Debug, Serialize, Clone)]
 pub struct PlayerView {
+    pub uuid: Uuid,
     pub name: String,
     pub is_alive: bool,
     pub coins: u8,
@@ -57,6 +58,7 @@ impl PlayerView {
         };
 
         PlayerView {
+            uuid: player.uuid,
             name: player.name.clone(),
             is_alive: player.is_alive,
             coins: player.coins,
@@ -235,4 +237,10 @@ pub enum ServerMessage {
 
     #[serde(rename = "action_result")]
     ActionResult { message: String },
+
+    #[serde(rename = "signal")]
+    Signal {
+        from_uuid: Uuid,
+        payload: serde_json::Value,
+    },
 }

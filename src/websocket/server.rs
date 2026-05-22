@@ -101,6 +101,14 @@ pub struct BlockAction {
     pub claimed_role: String,
 }
 
+#[derive(Message)]
+#[rtype(result = "()")]
+pub struct SignalRelay {
+    pub from_uuid: Uuid,
+    pub to_uuid: Uuid,
+    pub payload: String,
+}
+
 // --- Server ---
 
 #[derive(Debug)]
@@ -1626,5 +1634,32 @@ impl Handler<BlockAction> for ChatServer {
         }
 
         self.start_current_phase(&room_uuid, ctx);
+    }
+}
+
+impl Handler<SignalRelay> for ChatServer {
+    type Result = ();
+
+    fn handle(&mut self, msg: SignalRelay, _: &mut Context<Self>) {
+        // Verify both players are in the same room
+        let from_room = player_to_game(&msg.from_uuid, self);
+        let to_room = player_to_game(&msg.to_uuid, self);
+
+        if from_room.is_none() || from_room != to_room {
+            return;
+        }
+
+        let payload: serde_json::Value = match serde_json::from_str(&msg.payload) {
+            Ok(v) => v,
+            Err(_) => return,
+        };
+
+        self.send_to_player(
+            &msg.to_uuid,
+            &ServerMessage::Signal {
+                from_uuid: msg.from_uuid,
+                payload,
+            },
+        );
     }
 }
